@@ -3,7 +3,7 @@
 
 /*
 Usage: (THIS IS A VERY LIGHT IMPLEMENTATION, NO DEPENDS, MAX SPEED, LOW SIZE, POWERFUL)
-
+0. Put #include "debuglog.h" into precompiler header
 1. Somewhere in module define macros 'DEFINE_LOG', that is define logentry there log is created
 Example:
 DEFINE_LOG
@@ -168,7 +168,7 @@ namespace Debug
 
 #ifdef _WIN32
   template<>
-  std::basic_string<wchar_t>& string_convert<char, wchar_t>(const char* s, std::basic_string<wchar_t>& result)
+  inline std::basic_string<wchar_t>& string_convert<char, wchar_t>(const char* s, std::basic_string<wchar_t>& result)
   {
     result.clear();
     int requiredSize = ::MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
@@ -183,7 +183,7 @@ namespace Debug
   }
 #else
   template<>
-  std::wstring& string_convert<char, wchar_t>(const char* s, std::wstring& result)
+ inline std::wstring& string_convert<char, wchar_t>(const char* s, std::wstring& result)
   {
     std::vector<wchar_t> buff(string_len(s) + 1, 0);
     size_t requiredSize = ::mbstowcs(&buff[0], s, buff.size());
@@ -199,7 +199,7 @@ namespace Debug
   }
 
   template<>
-  std::string& string_convert<wchar_t, char>(const wchar_t* s, std::string& result)
+  inline std::string& string_convert<wchar_t, char>(const wchar_t* s, std::string& result)
   {
     std::vector<char> buff(string_len(s)+1, 0);
     size_t requiredSize = ::wcstombs(&buff[0], s, buff.size());
@@ -586,12 +586,15 @@ namespace Debug
     {
 #ifdef _WIN32
       const CharType UNDERSCORE[] = {'_', 0};
-      std::basic_string<CharType> longname(GetModuleName() + UNDERSCORE);
+      std::basic_string<CharType> logname(GetModuleName() + UNDERSCORE);
 
       
       std::basic_string<CharType> compName;
-      if (GetComputerName(compName))
-        logname += compName + '_';
+	  if (GetComputerName(compName))
+	  {
+		  logname += compName;
+		  logname += _T("_");
+	  }
 
       time_t t = time(NULL);
       CharType Buff[MAX_PATH] = {0};
@@ -602,7 +605,7 @@ namespace Debug
         tms.tm_mday, tms.tm_mon, 1900 + tms.tm_year, tms.tm_hour, tms.tm_min, tms.tm_sec);
 
       logname += Buff;
-      _tfopen_s(&_file, logname.c_str(), __T("w+bcS"));
+	  _file = _tfsopen(logname.c_str(), __T("w+bcS"), _SH_DENYWR);
 
 #else
       std::string logname(program_invocation_name);
@@ -617,7 +620,7 @@ namespace Debug
 
       logname += Buff;
 
-      _file = fopen(logname.c_str(), "w+bc");
+      _file = fsopen(logname.c_str(), "w+bc", _SH_DENYWR);
 #endif
 
       if (_file)
@@ -642,8 +645,9 @@ namespace Debug
     }
 
   private:
+
 #ifdef _WIN32
-    bool GetCompuerName(const std::string& name)const
+    bool GetComputerName(std::string& name) const
     {
       DWORD size = MAX_PATH;
       char buff[MAX_PATH] = {0};
@@ -652,7 +656,8 @@ namespace Debug
         name = buff;
       return res;
     }
-    bool GetCompuerName(const std::wstring& name)const
+
+    bool GetComputerName(std::wstring& name) const
     {
       DWORD size = MAX_PATH;
       wchar_t buff[MAX_PATH] = {0};
@@ -848,8 +853,8 @@ namespace Debug
   //Lock log befor entry write and unlock it when log is completed
 # define DEFINE_LOG namespace Debug {tLog* GetLog(){static LogWriter<TCHAR> log; log.Lock(); return &log;}}
 # define LOG(log) Debug::Time(Debug::Where(log, __FILE__, __LINE__))
-# define __Error Debug::Dbg(LOG(Debug::GetLog()))->Trace
-# define __Debug Debug::Err(LOG(Debug::GetLog()))->Trace
+# define __Error Debug::Err(LOG(Debug::GetLog()))->Trace
+# define __Debug Debug::Dbg(LOG(Debug::GetLog()))->Trace
 #else
 # define DEFINE_LOG
   inline void _dbg_stub(const TCHAR*, ...) {}
